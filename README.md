@@ -1,4 +1,4 @@
-# Wall Dash Tester
+# Wall Dasher
 
 A lightweight, browser-based tool to measure Rocket League wall-dash “double tap” timing.
 
@@ -42,6 +42,7 @@ A lightweight, browser-based tool to measure Rocket League wall-dash “double t
 ## License
 
 This project is provided as-is for personal use and community practice.
+
 
 
 
