@@ -1,7 +1,6 @@
-# Wall Dasher
+# [Wall Dasher](https://walldasher.fancyducky.org)
 
 A lightweight, browser-based tool to measure Rocket League wall-dash “double tap” timing.
-[https://walldasher.fancyducky.org](Wall Dasher)
 
 ## Features
 
