@@ -1490,7 +1490,7 @@
 		welcomeOverlay.setAttribute('aria-hidden', 'false');
 		// Initialize welcome video volume on open
 		if (welcomeVideo) {
-			try { welcomeVideo.volume = 0.35; } catch {}
+			try { welcomeVideo.volume = 0.50; } catch {}
 			// Attempt autoplay with sound; fall back to muted autoplay if blocked
 			try {
 				welcomeVideo.muted = false;
