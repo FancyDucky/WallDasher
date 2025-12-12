@@ -45,6 +45,8 @@
 	const madeByContainer = document.querySelector('.made-by');
 	const aboutBtn = document.getElementById('aboutBtn');
 	const aboutOverlay = document.getElementById('aboutOverlay');
+	const kbmWarnOverlay = document.getElementById('kbmWarnOverlay');
+	const kbmWarnOkBtn = document.getElementById('kbmWarnOk');
 	const unbindBtn = document.getElementById('unbindBtn');
 	const welcomeOverlay = document.getElementById('welcomeOverlay');
 	const welcomeVideo = document.getElementById('welcomeVideo');
@@ -81,6 +83,11 @@
 	let kbmTapKey = localStorage.getItem('kbmTapKey') ?? '';
 	let kbmRestartKey = localStorage.getItem('kbmRestartKey') ?? '';
 	let ignoreNextKeyBindPress = false;
+	let kbmTapBindType = localStorage.getItem('kbmTapBindType') || ''; // 'mouse' | 'key'
+	let kbmRestartBindType = localStorage.getItem('kbmRestartBindType') || ''; // 'mouse' | 'key'
+	let kbmAudioBindType = localStorage.getItem('kbmAudioBindType') || ''; // 'mouse' | 'key'
+	let kbmAudioButton = Number(localStorage.getItem('kbmAudioButton') ?? -1);
+	let kbmAudioKey = localStorage.getItem('kbmAudioKey') ?? '';
 	let inputPollId = 0; // high-frequency input polling for gamepad
 	let allowMultiGamepads = localStorage.getItem('allowMultiGamepads') === 'true';
 	let prevAnyButtonStates = [];
@@ -340,27 +347,33 @@
 		// While in binding mode, force prompt text and avoid rendering icons
 		if (bindingMode) {
 			if (bindingMode === 'tap' && bindTapText) {
-				bindTapText.textContent = kbmMode ? 'Click a mouse button or press a key...' : 'Press a Button';
+				bindTapText.textContent = kbmMode ? 'Click a mouse button or press a key...' : 'Press A Button';
 			}
 			if (bindingMode === 'restart' && bindRestartText) {
-				bindRestartText.textContent = kbmMode ? 'Click a mouse button or press a key...' : 'Press a Button';
+				bindRestartText.textContent = kbmMode ? 'Click a mouse button or press a key...' : 'Press A Button';
 			}
 			if (bindingMode === 'audio' && bindAudioText) {
-				bindAudioText.textContent = 'Press a Button';
+				bindAudioText.textContent = kbmMode ? 'Click a mouse button or press a key...' : 'Press A Button';
 			}
 			// Do not proceed to icon/text rendering while awaiting a bind
 			return;
 		}
 		let tapName, restartName, audioName;
 		if (kbmMode) {
-			const tapParts = [mouseButtonIndexToName(kbmTapButton), keyCodeToName(kbmTapKey)].filter(Boolean);
-			const restartParts = [mouseButtonIndexToName(kbmRestartButton), keyCodeToName(kbmRestartKey)].filter(Boolean);
-			tapName = tapParts.length ? tapParts.join(', ') : 'Unbound';
-			restartName = restartParts.length ? restartParts.join(', ') : 'Unbound';
+			tapName =
+				kbmTapBindType === 'mouse' ? (mouseButtonIndexToName(kbmTapButton) || 'Unbound')
+				: kbmTapBindType === 'key' ? (keyCodeToName(kbmTapKey) || 'Unbound')
+				: 'Unbound';
+			restartName =
+				kbmRestartBindType === 'mouse' ? (mouseButtonIndexToName(kbmRestartButton) || 'Unbound')
+				: kbmRestartBindType === 'key' ? (keyCodeToName(kbmRestartKey) || 'Unbound')
+				: 'Unbound';
+			audioName =
+				kbmAudioBindType === 'mouse' ? (mouseButtonIndexToName(kbmAudioButton) || 'Unbound')
+				: kbmAudioBindType === 'key' ? (keyCodeToName(kbmAudioKey) || 'Unbound')
+				: 'Unbound';
 			if (bindTapText) bindTapText.textContent = tapName;
 			if (bindRestartText) bindRestartText.textContent = restartName;
-			// Audio bind is gamepad-only; show its current mapping (or Unbound)
-			audioName = audioButtonIndex != null && audioButtonIndex >= 0 ? buttonIndexToName(audioButtonIndex, lastMapping) : 'Unbound';
 			if (bindAudioText) bindAudioText.textContent = audioName;
 		} else {
 			tapName = tapButtonIndex != null && tapButtonIndex >= 0 ? buttonIndexToName(tapButtonIndex, lastMapping) : 'Unbound';
@@ -427,6 +440,65 @@
 		}
 		if (tapButtonLabelEl) tapButtonLabelEl.textContent = tapName;
 		if (restartButtonLabelEl) restartButtonLabelEl.textContent = restartName;
+	}
+
+	function sanitizeKbmBindTypes() {
+		// If no explicit type stored (older saves), infer:
+		// Prefer key if present, otherwise mouse if present, otherwise default mouse.
+		if (kbmTapBindType !== 'mouse' && kbmTapBindType !== 'key') {
+			if (kbmTapKey) kbmTapBindType = 'key';
+			else if (kbmTapButton >= 0) kbmTapBindType = 'mouse';
+			else kbmTapBindType = 'mouse';
+			localStorage.setItem('kbmTapBindType', kbmTapBindType);
+		}
+		if (kbmRestartBindType !== 'mouse' && kbmRestartBindType !== 'key') {
+			if (kbmRestartKey) kbmRestartBindType = 'key';
+			else if (kbmRestartButton >= 0) kbmRestartBindType = 'mouse';
+			else kbmRestartBindType = 'mouse';
+			localStorage.setItem('kbmRestartBindType', kbmRestartBindType);
+		}
+		// Enforce exclusivity: if type is mouse, clear key; if type is key, clear mouse.
+		if (kbmTapBindType === 'mouse') {
+			if (kbmTapKey) {
+				kbmTapKey = '';
+				localStorage.removeItem('kbmTapKey');
+			}
+		} else {
+			if (kbmTapButton >= 0) {
+				kbmTapButton = -1;
+				localStorage.removeItem('kbmTapButton');
+			}
+		}
+		if (kbmRestartBindType === 'mouse') {
+			if (kbmRestartKey) {
+				kbmRestartKey = '';
+				localStorage.removeItem('kbmRestartKey');
+			}
+		} else {
+			if (kbmRestartButton >= 0) {
+				kbmRestartButton = -1;
+				localStorage.removeItem('kbmRestartButton');
+			}
+		}
+
+		// Audio KB/M bind (exclusive)
+		if (kbmAudioBindType !== 'mouse' && kbmAudioBindType !== 'key') {
+			if (kbmAudioKey) kbmAudioBindType = 'key';
+			else if (kbmAudioButton >= 0) kbmAudioBindType = 'mouse';
+			else kbmAudioBindType = '';
+			if (kbmAudioBindType) localStorage.setItem('kbmAudioBindType', kbmAudioBindType);
+		}
+		if (kbmAudioBindType === 'mouse') {
+			if (kbmAudioKey) {
+				kbmAudioKey = '';
+				localStorage.removeItem('kbmAudioKey');
+			}
+		} else if (kbmAudioBindType === 'key') {
+			if (kbmAudioButton >= 0) {
+				kbmAudioButton = -1;
+				localStorage.removeItem('kbmAudioButton');
+			}
+		}
 	}
 
 	function detectPlayStationFromId(id) {
@@ -768,6 +840,7 @@
 	// High precision gamepad polling (aims for ~4ms; browsers clamp setInterval)
 	function pollInputs() {
 		let skipActionsThisPoll = false;
+		const kbmWarnOpen = Boolean(kbmWarnOverlay && kbmWarnOverlay.classList.contains('open'));
 		// Auto-enable multi-pad mode if more than one gamepad is detected
 		try {
 			const padsProbe = (navigator.getGamepads?.() || []).filter(Boolean);
@@ -784,6 +857,7 @@
 				let maxButtons = 0;
 				for (const p of pads) maxButtons = Math.max(maxButtons, (p.buttons || []).length);
 				const currAny = new Array(maxButtons).fill(false);
+				let firstPressedPadIndex = -1;
 				// Update joystick from first pad if present
 				if (pads[0]) {
 					const ax = pads[0].axes || [];
@@ -796,6 +870,39 @@
 					for (let i = 0; i < buttons.length; i++) {
 						const pressed = Boolean(buttons[i] && (buttons[i].pressed || buttons[i].value > 0.5));
 						if (pressed) currAny[i] = true;
+						if (pressed && firstPressedPadIndex === -1) firstPressedPadIndex = p.index ?? -1;
+					}
+				}
+				// If KB/M warning is open, ANY gamepad button press should close it (and not switch modes)
+				if (kbmWarnOpen) {
+					for (let i = 0; i < currAny.length; i++) {
+						if (currAny[i] && !prevAnyButtonStates[i]) {
+							// Close warning and switch back to Gamepad mode
+							kbmMode = false;
+							localStorage.setItem('kbmMode', 'false');
+							if (firstPressedPadIndex >= 0) activeGamepadIndex = firstPressedPadIndex;
+							updateInputModeButton();
+							updatePadNameDisplay();
+							updateBindingLabels();
+							closeKbmWarn();
+							prevAnyButtonStates = currAny;
+							return;
+						}
+					}
+				}
+				// Allow binding the audio benchmark button even while in KB/M mode
+				if (bindingMode === 'audio') {
+					for (let i = 0; i < currAny.length; i++) {
+						if (currAny[i] && !prevAnyButtonStates[i]) {
+							audioButtonIndex = i;
+							localStorage.setItem('audioButtonIndex', String(i));
+							bindingMode = null;
+							bindAudioBtn?.classList.remove('active');
+							updateBindingLabels();
+							setBindingUIState(false);
+							prevAnyButtonStates = currAny;
+							return;
+						}
 					}
 				}
 				// rising edge across any pad
@@ -823,6 +930,38 @@
 					updateJoystickUI(ax[0] || 0, ax[1] || 0);
 					if (prevButtonStates.length !== currPressed.length) {
 						prevButtonStates = new Array(currPressed.length).fill(false);
+					}
+					// If KB/M warning is open, ANY gamepad button press should close it (and not switch modes)
+					if (kbmWarnOpen) {
+						for (let i = 0; i < currPressed.length; i++) {
+							if (currPressed[i] && !prevButtonStates[i]) {
+								// Close warning and switch back to Gamepad mode
+								kbmMode = false;
+								localStorage.setItem('kbmMode', 'false');
+								activeGamepadIndex = gp.index ?? activeGamepadIndex;
+								updateInputModeButton();
+								updatePadNameDisplay();
+								updateBindingLabels();
+								closeKbmWarn();
+								prevButtonStates = currPressed;
+								return;
+							}
+						}
+					}
+					// Allow binding the audio benchmark button even while in KB/M mode
+					if (bindingMode === 'audio') {
+						for (let i = 0; i < currPressed.length; i++) {
+							if (currPressed[i] && !prevButtonStates[i]) {
+								audioButtonIndex = i;
+								localStorage.setItem('audioButtonIndex', String(i));
+								bindingMode = null;
+								bindAudioBtn?.classList.remove('active');
+								updateBindingLabels();
+								setBindingUIState(false);
+								prevButtonStates = currPressed;
+								return;
+							}
+						}
 					}
 					for (let i = 0; i < currPressed.length; i++) {
 						if (currPressed[i] && !prevButtonStates[i]) {
@@ -1126,17 +1265,17 @@
 			bindTapBtn?.classList.add('active');
 			bindRestartBtn?.classList.remove('active');
 			bindAudioBtn?.classList.remove('active');
-			if (bindTapText) bindTapText.textContent = kbmMode ? 'Click a mouse button or press a key...' : 'Press a Button';
+			if (bindTapText) bindTapText.textContent = kbmMode ? 'Click a mouse button or press a key...' : 'Press A Button';
 		} else if (which === 'restart') {
 			bindRestartBtn?.classList.add('active');
 			bindTapBtn?.classList.remove('active');
 			bindAudioBtn?.classList.remove('active');
-			if (bindRestartText) bindRestartText.textContent = kbmMode ? 'Click a mouse button or press a key...' : 'Press a Button';
+			if (bindRestartText) bindRestartText.textContent = kbmMode ? 'Click a mouse button or press a key...' : 'Press A Button';
 		} else if (which === 'audio') {
 			bindAudioBtn?.classList.add('active');
 			bindTapBtn?.classList.remove('active');
 			bindRestartBtn?.classList.remove('active');
-			if (bindAudioText) bindAudioText.textContent = 'Press a Button';
+			if (bindAudioText) bindAudioText.textContent = 'Press A Button';
 		}
 		// Do not suppress next mouse/key press; binding should register on first press/click
 		// Ensure window has focus so key events are received
@@ -1146,15 +1285,20 @@
 	bindTapBtn?.addEventListener('click', () => toggleBinding('tap'));
 	bindRestartBtn?.addEventListener('click', () => toggleBinding('restart'));
 	bindAudioBtn?.addEventListener('click', () => toggleBinding('audio'));
+	// Ensure older saved states don’t have both a mouse and key set for the same bind
+	sanitizeKbmBindTypes();
 	updateBindingLabels();
 
 	// KB/M mode toggle
 	kbmModeBtn?.addEventListener('click', () => {
+		const wasKbm = kbmMode;
 		kbmMode = !kbmMode;
 		localStorage.setItem('kbmMode', String(kbmMode));
 		updateInputModeButton();
 		updatePadNameDisplay();
 		updateBindingLabels();
+		// If user explicitly switched into KB/M mode, warn about browser focus limitations
+		if (!wasKbm && kbmMode) openKbmWarn();
 	});
 	updateInputModeButton();
 	updatePadNameDisplay();
@@ -1205,10 +1349,20 @@
 		kbmRestartButton = -1;
 		kbmTapKey = '';
 		kbmRestartKey = '';
+		kbmTapBindType = '';
+		kbmRestartBindType = '';
+		kbmAudioButton = -1;
+		kbmAudioKey = '';
+		kbmAudioBindType = '';
 		localStorage.removeItem('kbmTapButton');
 		localStorage.removeItem('kbmRestartButton');
 		localStorage.removeItem('kbmTapKey');
 		localStorage.removeItem('kbmRestartKey');
+		localStorage.removeItem('kbmTapBindType');
+		localStorage.removeItem('kbmRestartBindType');
+		localStorage.removeItem('kbmAudioButton');
+		localStorage.removeItem('kbmAudioKey');
+		localStorage.removeItem('kbmAudioBindType');
 		// Exit binding mode and refresh labels
 		bindingMode = null;
 		bindTapBtn?.classList.remove('active');
@@ -1289,6 +1443,45 @@
 		if (e.target === aboutOverlay) closeAbout();
 	});
 
+	// KB/M warning modal handlers
+	function openKbmWarn() {
+		if (!kbmWarnOverlay) return;
+		kbmWarnOverlay.classList.remove('closing');
+		kbmWarnOverlay.classList.add('open');
+		kbmWarnOverlay.setAttribute('aria-hidden', 'false');
+	}
+	function shakeKbmWarn() {
+		if (!kbmWarnOverlay) return;
+		const inner = kbmWarnOverlay.querySelector('.kbm-warn-inner');
+		if (!inner) return;
+		inner.classList.remove('shake');
+		// Force reflow so the animation can retrigger
+		void inner.offsetWidth;
+		inner.classList.add('shake');
+		inner.addEventListener('animationend', () => inner.classList.remove('shake'), { once: true });
+	}
+	function closeKbmWarn() {
+		if (!kbmWarnOverlay) return;
+		kbmWarnOverlay.classList.remove('open');
+		kbmWarnOverlay.classList.add('closing');
+		const done = () => {
+			kbmWarnOverlay?.classList.remove('closing');
+			kbmWarnOverlay?.setAttribute('aria-hidden', 'true');
+		};
+		let timeoutId = setTimeout(done, 300);
+		kbmWarnOverlay.addEventListener('animationend', function handler(e) {
+			if (e.target !== kbmWarnOverlay.querySelector('.lt-sheet')) return;
+			clearTimeout(timeoutId);
+			kbmWarnOverlay.removeEventListener('animationend', handler);
+			done();
+		});
+	}
+	kbmWarnOverlay?.addEventListener('click', (e) => {
+		// Clicking outside should not close; it should shake until acknowledged.
+		if (e.target === kbmWarnOverlay) shakeKbmWarn();
+	});
+	kbmWarnOkBtn?.addEventListener('click', () => closeKbmWarn());
+
 	// Welcome modal handlers (open on load, close on first gamepad press)
 	function openWelcome() {
 		if (!welcomeOverlay) return;
@@ -1320,13 +1513,8 @@
 	}
 	// Click outside welcome: set KB/M input mode and close
 	welcomeOverlay?.addEventListener('click', (e) => {
-		// Any click on the welcome overlay sets KB/M and closes
-		kbmMode = true;
-		localStorage.setItem('kbmMode', 'true');
-		updateInputModeButton();
-		updatePadNameDisplay();
-		updateBindingLabels();
-		closeWelcome();
+		// Clicking outside the welcome sheet should only close it (do not auto-switch input modes)
+		if (e.target === welcomeOverlay) closeWelcome();
 	});
 	function closeWelcome() {
 		if (!welcomeOverlay) return;
@@ -1374,28 +1562,52 @@
 		if (bindingMode) {
 			const btn = e.button;
 			if (bindingMode === 'tap') {
+				kbmTapBindType = 'mouse';
+				localStorage.setItem('kbmTapBindType', 'mouse');
 				kbmTapButton = btn;
 				localStorage.setItem('kbmTapButton', String(btn));
+				// Exclusivity: clear key bind
+				kbmTapKey = '';
+				localStorage.removeItem('kbmTapKey');
 			} else if (bindingMode === 'restart') {
+				kbmRestartBindType = 'mouse';
+				localStorage.setItem('kbmRestartBindType', 'mouse');
 				kbmRestartButton = btn;
 				localStorage.setItem('kbmRestartButton', String(btn));
+				// Exclusivity: clear key bind
+				kbmRestartKey = '';
+				localStorage.removeItem('kbmRestartKey');
+			} else if (bindingMode === 'audio') {
+				kbmAudioBindType = 'mouse';
+				localStorage.setItem('kbmAudioBindType', 'mouse');
+				kbmAudioButton = btn;
+				localStorage.setItem('kbmAudioButton', String(btn));
+				// Exclusivity: clear key bind
+				kbmAudioKey = '';
+				localStorage.removeItem('kbmAudioKey');
 			}
 			bindingMode = null;
 			bindTapBtn?.classList.remove('active');
 			bindRestartBtn?.classList.remove('active');
+			bindAudioBtn?.classList.remove('active');
 			updateBindingLabels();
 			setBindingUIState(false);
 			e.preventDefault();
 			return;
 		}
 		// Actions
-		if (e.button === kbmRestartButton) {
+		if (kbmRestartBindType === 'mouse' && e.button === kbmRestartButton) {
 			e.preventDefault();
 			reset(false);
 			start();
 			return;
 		}
-		if (e.button === kbmTapButton) {
+		if (kbmAudioBindType === 'mouse' && e.button === kbmAudioButton) {
+			e.preventDefault();
+			if (interval85Id) stop85Loop(); else start85Loop();
+			return;
+		}
+		if (kbmTapBindType === 'mouse' && e.button === kbmTapButton) {
 			e.preventDefault();
 		joyAutoCapture = true;
 			if (!isRunning) start();
@@ -1455,28 +1667,52 @@
 		// Rebinding
 		if (bindingMode) {
 			if (bindingMode === 'tap') {
+				kbmTapBindType = 'key';
+				localStorage.setItem('kbmTapBindType', 'key');
 				kbmTapKey = code;
 				localStorage.setItem('kbmTapKey', code);
+				// Exclusivity: clear mouse bind
+				kbmTapButton = -1;
+				localStorage.removeItem('kbmTapButton');
 			} else if (bindingMode === 'restart') {
+				kbmRestartBindType = 'key';
+				localStorage.setItem('kbmRestartBindType', 'key');
 				kbmRestartKey = code;
 				localStorage.setItem('kbmRestartKey', code);
+				// Exclusivity: clear mouse bind
+				kbmRestartButton = -1;
+				localStorage.removeItem('kbmRestartButton');
+			} else if (bindingMode === 'audio') {
+				kbmAudioBindType = 'key';
+				localStorage.setItem('kbmAudioBindType', 'key');
+				kbmAudioKey = code;
+				localStorage.setItem('kbmAudioKey', code);
+				// Exclusivity: clear mouse bind
+				kbmAudioButton = -1;
+				localStorage.removeItem('kbmAudioButton');
 			}
 			bindingMode = null;
 			bindTapBtn?.classList.remove('active');
 			bindRestartBtn?.classList.remove('active');
+			bindAudioBtn?.classList.remove('active');
 			updateBindingLabels();
 			setBindingUIState(false);
 			e.preventDefault();
 			return;
 		}
 		// Actions
-		if (code && kbmRestartKey && code === kbmRestartKey) {
+		if (kbmRestartBindType === 'key' && code && kbmRestartKey && code === kbmRestartKey) {
 			e.preventDefault();
 			reset(false);
 			start();
 			return;
 		}
-		if (code && kbmTapKey && code === kbmTapKey) {
+		if (kbmAudioBindType === 'key' && code && kbmAudioKey && code === kbmAudioKey) {
+			e.preventDefault();
+			if (interval85Id) stop85Loop(); else start85Loop();
+			return;
+		}
+		if (kbmTapBindType === 'key' && code && kbmTapKey && code === kbmTapKey) {
 			e.preventDefault();
 			joyAutoCapture = true;
 			if (!isRunning) start();
